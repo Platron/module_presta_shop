@@ -1,5 +1,7 @@
 <?php
 require_once 'PG_Signature.php';
+include('OfdReceiptItem.php');
+include('OfdReceiptRequest.php');
 
 class platron extends PaymentModule
 {
@@ -8,7 +10,8 @@ class platron extends PaymentModule
 	public $pl_merchant_id;
 	public $pl_secret_key;
 	public $pl_lifetime;
-	public $pl_testmode;
+    public $pl_testmode;
+	public $pl_ofd_check;
 
     public function __construct()
     {
@@ -20,16 +23,17 @@ class platron extends PaymentModule
         $this->currencies = true;
         $this->currencies_mode = 'radio';
         
-        $config = Configuration::getMultiple(array('PL_MERCHANT_ID', 'PL_SECRET_KEY', 'PL_LIFETIME', 'PL_TESTMODE'));    
+        $config = Configuration::getMultiple(array('PL_MERCHANT_ID', 'PL_SECRET_KEY', 'PL_LIFETIME', 'PL_TESTMODE', 'PL_OFDCHECK')); 
         if (isset($config['PL_MERCHANT_ID']))
             $this->pl_merchant_id = $config['PL_MERCHANT_ID'];
-		if (isset($config['PL_SECRET_KEY']))
-			$this->pl_secret_key = $config['PL_SECRET_KEY'];
-		if (isset($config['PL_LIFETIME']))
+        if (isset($config['PL_SECRET_KEY']))
+            $this->pl_secret_key = $config['PL_SECRET_KEY'];
+        if (isset($config['PL_LIFETIME']))
             $this->pl_lifetime = $config['PL_LIFETIME'];
-		if (isset($config['PL_TESTMODE']))
+        if (isset($config['PL_TESTMODE']))
             $this->pl_testmode = $config['PL_TESTMODE'];
-            
+        if (isset($config['PL_OFDCHECK']))
+            $this->pl_ofd_check = $config['PL_OFDCHECK'];
         parent::__construct();
         
         /* The parent construct is required for translations */
@@ -47,7 +51,8 @@ class platron extends PaymentModule
 		Configuration::updateValue('PL_MERCHANT_ID', '');
 		Configuration::updateValue('PL_SECRET_KEY', '');
 		Configuration::updateValue('PL_LIFETIME', '');
-		Configuration::updateValue('PL_TESTMODE', '1');
+        Configuration::updateValue('PL_TESTMODE', '1');
+		Configuration::updateValue('PL_OFDCHECK', '1');
 		
         return true;
     }
@@ -57,7 +62,8 @@ class platron extends PaymentModule
 		Configuration::deleteByName('PL_MERCHANT_ID');
 		Configuration::deleteByName('PL_SECRET_KEY');
 		Configuration::deleteByName('PL_LIFETIME');
-		Configuration::deleteByName('PL_TESTMODE');
+        Configuration::deleteByName('PL_TESTMODE');
+		Configuration::deleteByName('PL_OFDCHECK');
 		
 		parent::uninstall();
     }
@@ -77,13 +83,17 @@ class platron extends PaymentModule
     {
         if (isset($_POST['btnSubmit']))
         {
-			if(!isset($_POST['pl_testmode']))
-				$_POST['pl_testmode'] = 0;
-			
+            if(!isset($_POST['pl_testmode']))
+                $_POST['pl_testmode'] = 0;			
+
+            if(!isset($_POST['pl_ofd_check']))
+				$_POST['pl_ofd_check'] = 0;
+
 			Configuration::updateValue('PL_MERCHANT_ID', $_POST['pl_merchant_id']);
             Configuration::updateValue('PL_SECRET_KEY', $_POST['pl_secret_key']);
             Configuration::updateValue('PL_LIFETIME', $_POST['pl_lifetime']);
-			Configuration::updateValue('PL_TESTMODE', $_POST['pl_testmode']);
+            Configuration::updateValue('PL_TESTMODE', $_POST['pl_testmode']);
+			Configuration::updateValue('PL_OFDCHECK', $_POST['pl_ofd_check']);
         }
         $this->_html .= '<div class="conf confirm"><img src="../img/admin/ok.gif" alt="'.$this->l('OK').'" /> '.$this->l('Settings updated').'</div>';
     }
@@ -96,7 +106,9 @@ class platron extends PaymentModule
     
     private function _displayForm()
     {
-		$bTestMode = htmlentities(Tools::getValue('pl_testmode', $this->pl_testmode), ENT_COMPAT, 'UTF-8');		
+        $bTestMode = htmlentities(Tools::getValue('pl_testmode', $this->pl_testmode), ENT_COMPAT, 'UTF-8');    
+		$checkOfd = htmlentities(Tools::getValue('pl_ofd_check', $this->pl_ofd_check), ENT_COMPAT, 'UTF-8');
+        $checkedOfdstr = $checkOfd ? 'checked="checked"' : '';
 		$checked = '';
 		if($bTestMode)
 			$checked = 'checked="checked"';
@@ -115,6 +127,11 @@ class platron extends PaymentModule
 							<input type="checkbox" name="pl_testmode" value="1" '.$checked.'/>
 						</td>
 					</tr>
+                    <tr><td width="140" style="height: 35px;">'.$this->l('Создание чека').'</td>
+                        <td>
+                            <input type="checkbox" name="pl_ofd_check" value="1" '.$checkedOfdstr.'/>
+                        </td>
+                    </tr>
                     <tr><td colspan="2" align="center"><br /><input class="button" name="btnSubmit" value="'.$this->l('Update settings').'" type="submit" /></td></tr>
                 </table>
             </fieldset>
@@ -142,55 +159,149 @@ class platron extends PaymentModule
 
         return $this->_html;
     }
-	
+    
     public function hookPayment($params)
     {
         global $smarty;
+        $cookie = $this->context->cookie;
+        $customer = new Customer((int)$cookie->id_customer);
 
-		$cookie = $this->context->cookie;
-		$customer = new Customer((int)$cookie->id_customer);
-		$nTotalPrice = $params['cart']->getOrderTotal(true, 3);
-		
-		$arrOrderItems = $params['cart']->getProducts();
-		foreach($arrOrderItems as $arrItem){
-			$strDescription .= $arrItem['name'];
-			if(!empty($arrItem['attributes_small']))
-				$strDescription .= " ".$arrItem['attributes_small'];
-			if($arrItem['cart_quantity'] > 1)
-				$strDescription .= "*".$arrItem['cart_quantity'];
-			$strDescription .= "; ";
-		}
-		
-		$objLang = new LanguageCore($cookie->id_lang);
-		$strRequestUrl = 'http://' . $_SERVER['HTTP_HOST'] . '/modules/platron/callback.php';
-		
-		$arrFields = array(
-			'pg_merchant_id'		=> $this->pl_merchant_id,
-			'pg_order_id'			=> $params['cart']->id,
-			'pg_currency'			=> $this->getCurrency()->iso_code,
-			'pg_amount'				=> $nTotalPrice,
-			'pg_lifetime'			=> $this->pl_lifetime?$this->pl_lifetime*60:0,
-			'pg_testing_mode'		=> $this->pl_testmode,
-			'pg_description'		=> $strDescription,
-			'pg_user_ip'			=> $_SERVER['REMOTE_ADDR'],
-			'pg_language'			=> ($objLang->iso_code == 'ru') ? 'ru': 'en',
-			'pg_check_url'			=> $strRequestUrl,
-			'pg_result_url'			=> $strRequestUrl,
-			'pg_success_url'		=> 'http://'.$_SERVER['HTTP_HOST'].'/order-history',
-			'pg_failure_url'		=> 'http://'.$_SERVER['HTTP_HOST'].'/order-history',
-			'pg_request_method'		=> 'GET',
-			'cms_payment_module'	=> 'PRESTASHOP',
-			'pg_salt'				=> rand(21,43433), // Параметры безопасности сообщения. Необходима генерация pg_salt и подписи сообщения.
-			'pg_user_email'			=> $cookie->email,
-			'pg_user_contact_email'	=> $cookie->email,
-		);
-		$arrFields['pg_sig'] = PG_Signature::make('payment.php', $arrFields, $this->pl_secret_key);
-		
-		$smarty->assign('arrFields', $arrFields);
+        $paramsQuery = $this->generateParamsQueryByTransactionFromOrder($params['cart']);
+
+        // header("Location: ".$redirectUrl);
+        $smarty->assign('arrFields', $paramsQuery);
 
         return $this->display(__FILE__, 'platron.tpl');
     }
-    
+
+    /**
+     * Создание списка товаров для чека
+     * @param  Order $order заказ
+     * @return array
+     */
+    public function createItemsOfOrderByCheck($order)
+    {
+        $ofdReceiptItems = [];
+        $rate = 0;
+        foreach($order->getProducts()as $key => $item) {
+            $ofdReceiptItem           = new OfdReceiptItem();
+            $ofdReceiptItem->label    = $item['name'];
+            $ofdReceiptItem->amount   = round($item['price_wt'] * $item['quantity'], 2);
+            $ofdReceiptItem->price    = round($item['price_wt'], 2);
+            $ofdReceiptItem->quantity =  $item['quantity'];
+            $ofdReceiptItem->vat      = (int) $item['rate'];
+            $ofdReceiptItems[]        = $ofdReceiptItem;
+            $rate = (int) $item['rate'];
+        }
+        if ($order->getPackageShippingCost() > 0) {
+            $ofdReceiptItems[] = $this->addShippingByOrder($order, $rate);
+        }
+        $sum = 0;
+        return $ofdReceiptItems;
+    }
+
+    public function createCreateOfdCheck()
+    {
+        return !is_null($this->pl_check);
+    }
+
+    protected function addShippingByOrder($order, $rate)
+    {
+        $ofdReceiptItem           = new OfdReceiptItem();
+        $ofdReceiptItem->label    = 'Доставка';
+        $ofdReceiptItem->amount   = round($order->getPackageShippingCost(), 2);
+        $ofdReceiptItem->price    = round($order->getPackageShippingCost(), 2);
+        $ofdReceiptItem->vat      = (int) $rate; // fixed
+        $ofdReceiptItem->quantity = 1;
+        return $ofdReceiptItem;
+    }
+
+    /**
+     * Проверка, сделать ли чек 
+     * @param  array настройки 
+     * @return boolean [description]
+     */
+    public function isCreateOfdCheck($pmconfigs)
+    {
+        return (int) $this->pl_ofd_check;
+    }
+
+    /**
+     * Проверка все ли удачно прошло, при создании транзакции
+     * @param  bool $checkResponse
+     * @param  SimpleXMLElement $responseElement 
+     * @return bool 
+     */
+    public function checkResponseFromCreateTransaction($checkResponse,$responseElement)
+    {
+        return $checkResponse && (string) $responseElement->pg_status === 'ok';
+    }
+
+
+    /**
+     * Создание http запроса  
+     * @param  string $action url относительный url платрон
+     * @param  array $params
+     * @return xml
+     */
+    public function createQuery($action, $params = []) 
+    {
+        //Инициализирует сеанс
+        $connection = curl_init();
+        $url = $this->getServiseUrl().'/'. $action;
+        if (count($params)) {
+            $url = $url.'?'.http_build_query($params);
+        }
+
+        curl_setopt($connection, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($connection, CURLOPT_URL, $url);
+        $response = curl_exec($connection);
+        curl_close($connection);
+        return $response;
+    }
+
+
+    protected function getServiseUrl()
+    {
+        return 'https://platron.ru';
+    }
+    /**
+     * генерация пареметров запроса для создания транзакции 
+     * @param  Order $order     заказ
+     * @param  array $pmconfigs настройки платежной системы
+     * @return array параметры запроса           
+     */
+    private function generateParamsQueryByTransactionFromOrder($order)
+    {
+        $cookie = $this->context->cookie;
+        $objLang = new LanguageCore($cookie->id_lang);
+
+        $check_url  = $this->getServiseUrl() . "/index.php?option=com_jshopping&controller=checkout&task=step7&act=check&js_paymentclass=pm_platron&type=check&order_id=".$this->pl_merchant_id;
+        $result_url =  $this->getServiseUrl() . "/index.php?option=com_jshopping&controller=checkout&task=step7&act=result&js_paymentclass=pm_platron&type=check&order_id=".$this->pl_merchant_id;
+        $arrReq   = [];
+        /* Обязательные параметры */
+        $arrReq['pg_merchant_id']  = $this->pl_merchant_id; // Идентификатор магазина
+        $arrReq['pg_order_id']     = $order->id;  // Идентификатор заказа в системе магазина
+        $arrReq['pg_amount']       = $order->getOrderTotal(true, 3); // Сумма заказа
+        $arrReq['pg_description']  = "Оплата заказа ".$_SERVER['HTTP_HOST']; // Описание заказа (показывается в Платёжной системе)
+        $arrReq['pg_site_url']     = $_SERVER['HTTP_HOST']; // Для возврата на сайт
+        $arrReq['pg_lifetime']     = $this->pl_lifetime ? $this->pl_lifetime*60 : 0; // Время жизни в секундах
+        $arrReq['pg_check_url']    = $check_url; // Проверка заказа
+        $arrReq['pg_result_url']   = $result_url; // Оповещение о результатах
+        $arrReq['pg_language']     = ($objLang->iso_code == 'ru') ? 'ru': 'en';
+        // $arrReq['pg_user_ip']   = $_SERVER['REMOTE_ADDR'];
+        $arrReq['pg_testing_mode'] =  $this->pl_testmode;
+        $arrReq['pg_currency']     = $this->getCurrency()->iso_code;
+        $arrReq['pg_salt'] =  rand(21,43433);
+        $arrReq['cms_payment_module'] = 'PRESTASHOP';
+        $arrReq['pg_user_email'] = $cookie->email;
+        $arrReq['pg_user_contact_email'] = $cookie->email;
+
+        $arrReq['pg_sig'] = PG_Signature::make('init_payment.php', $arrReq, $this->pl_secret_key);
+
+        return $arrReq;
+    }
+
     public function getL($key)
     {
         $translations = array(

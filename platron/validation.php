@@ -27,7 +27,7 @@ if(!$response){
 else {
     $paymentId  = (string) $responseElement->pg_payment_id;
     // создание чека 
-    if ($platron->isCreateOfdCheck()) {
+    if ($platron->isCreateOfdCheck([])) {
        $orderItems = $platron->createItemsOfOrderByCheck($cart);
 
        $ofdReceiptRequest = new OfdReceiptRequest($platron->pl_merchant_id, $paymentId);

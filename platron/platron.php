@@ -275,9 +275,9 @@ class platron extends PaymentModule
     {
         $cookie = $this->context->cookie;
         $objLang = new LanguageCore($cookie->id_lang);
+        
+        $callbackUrl = Tools::getShopDomainSsl(true, true) . _MODULE_DIR_ . $this->name . '/callback.php';
 
-        $check_url  = $this->getServiseUrl() . "/index.php?option=com_jshopping&controller=checkout&task=step7&act=check&js_paymentclass=pm_platron&type=check&order_id=".$this->pl_merchant_id;
-        $result_url =  $this->getServiseUrl() . "/index.php?option=com_jshopping&controller=checkout&task=step7&act=result&js_paymentclass=pm_platron&type=check&order_id=".$this->pl_merchant_id;
         $arrReq   = [];
         /* Обязательные параметры */
         $arrReq['pg_merchant_id']  = $this->pl_merchant_id; // Идентификатор магазина
@@ -286,9 +286,11 @@ class platron extends PaymentModule
         $arrReq['pg_description']  = "Оплата заказа ".$_SERVER['HTTP_HOST']; // Описание заказа (показывается в Платёжной системе)
         $arrReq['pg_site_url']     = $_SERVER['HTTP_HOST']; // Для возврата на сайт
         $arrReq['pg_lifetime']     = $this->pl_lifetime ? $this->pl_lifetime*60 : 0; // Время жизни в секундах
-        $arrReq['pg_check_url']    = $check_url; // Проверка заказа
-        $arrReq['pg_result_url']   = $result_url; // Оповещение о результатах
+        $arrReq['pg_check_url']    = $callbackUrl; // Проверка заказа
+        $arrReq['pg_result_url']   = $callbackUrl; // Оповещение о результатах
         $arrReq['pg_language']     = ($objLang->iso_code == 'ru') ? 'ru': 'en';
+        $arrReq['pg_success_url'] = Tools::getShopDomainSsl(true, true) . '/order-history';
+        $arrReq['pg_failure_url'] = Tools::getShopDomainSsl(true, true) . '/order-history';
         // $arrReq['pg_user_ip']   = $_SERVER['REMOTE_ADDR'];
         $arrReq['pg_testing_mode'] =  $this->pl_testmode;
         $arrReq['pg_currency']     = $this->getCurrency()->iso_code;

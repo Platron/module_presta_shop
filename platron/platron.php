@@ -12,6 +12,7 @@ class platron extends PaymentModule
 	public $pl_lifetime;
     public $pl_testmode;
 	public $pl_ofd_check;
+	public $pl_ofd_vat;
 
     public function __construct()
     {
@@ -23,7 +24,7 @@ class platron extends PaymentModule
         $this->currencies = true;
         $this->currencies_mode = 'radio';
         
-        $config = Configuration::getMultiple(array('PL_MERCHANT_ID', 'PL_SECRET_KEY', 'PL_LIFETIME', 'PL_TESTMODE', 'PL_OFDCHECK')); 
+        $config = Configuration::getMultiple(array('PL_MERCHANT_ID', 'PL_SECRET_KEY', 'PL_LIFETIME', 'PL_TESTMODE', 'PL_OFDCHECK', 'PL_OFD_VAT')); 
         if (isset($config['PL_MERCHANT_ID']))
             $this->pl_merchant_id = $config['PL_MERCHANT_ID'];
         if (isset($config['PL_SECRET_KEY']))
@@ -34,6 +35,8 @@ class platron extends PaymentModule
             $this->pl_testmode = $config['PL_TESTMODE'];
         if (isset($config['PL_OFDCHECK']))
             $this->pl_ofd_check = $config['PL_OFDCHECK'];
+        if (isset($config['PL_OFD_VAT']))
+            $this->pl_ofd_vat = $config['PL_OFD_VAT'];
         parent::__construct();
         
         /* The parent construct is required for translations */
@@ -53,6 +56,7 @@ class platron extends PaymentModule
 		Configuration::updateValue('PL_LIFETIME', '');
         Configuration::updateValue('PL_TESTMODE', '1');
 		Configuration::updateValue('PL_OFDCHECK', '1');
+		Configuration::updateValue('PL_OFD_VAT', 'none');
 		
         return true;
     }
@@ -64,6 +68,7 @@ class platron extends PaymentModule
 		Configuration::deleteByName('PL_LIFETIME');
         Configuration::deleteByName('PL_TESTMODE');
 		Configuration::deleteByName('PL_OFDCHECK');
+		Configuration::deleteByName('PL_OFD_VAT');
 		
 		parent::uninstall();
     }
@@ -94,6 +99,7 @@ class platron extends PaymentModule
             Configuration::updateValue('PL_LIFETIME', $_POST['pl_lifetime']);
             Configuration::updateValue('PL_TESTMODE', $_POST['pl_testmode']);
 			Configuration::updateValue('PL_OFDCHECK', $_POST['pl_ofd_check']);
+			Configuration::updateValue('PL_OFD_VAT', $_POST['pl_ofd_vat']);
         }
         $this->_html .= '<div class="conf confirm"><img src="../img/admin/ok.gif" alt="'.$this->l('OK').'" /> '.$this->l('Settings updated').'</div>';
     }
@@ -112,6 +118,8 @@ class platron extends PaymentModule
 		$checked = '';
 		if($bTestMode)
 			$checked = 'checked="checked"';
+
+		$selectedVatType = Tools::getValue('pl_ofd_vat', $this->pl_ofd_vat);
 		
 		$this->_html .=
         '<form action="'.$_SERVER['REQUEST_URI'].'" method="post">
@@ -131,6 +139,18 @@ class platron extends PaymentModule
                         <td>
                             <input type="checkbox" name="pl_ofd_check" value="1" '.$checkedOfdstr.'/>
                         </td>
+                    </tr>
+                    <tr>
+                    	<td style="width:140px;height:35px;">' . $this->l('Ставка НДС') . '</td>
+                    	<td>
+                    		<select name="pl_ofd_vat">
+                    			<option value="none" ' . ('none' === $selectedVatType ? 'selected="selected"' : '') . '>' . $this->l('Не облагается') . '</option>
+                    			<option value="0" ' . ('0' === $selectedVatType ? 'selected="selected"' : '') . '>' . $this->l('0%') . '</option>
+                    			<option value="10" ' . ('10' === $selectedVatType ? 'selected="selected"' : '') . '>' . $this->l('10%') . '</option>
+                    			<option value="18" ' . ('18' === $selectedVatType ? 'selected="selected"' : '') . '>' . $this->l('18%') . '</option>
+                    			<option value="110" ' . ('110' === $selectedVatType ? 'selected="selected"' : '') . '>' . $this->l('10/110') . '</option>
+                    			<option value="118" ' . ('118' === $selectedVatType ? 'selected="selected"' : '') . '>' . $this->l('18/118') . '</option>
+                    		</select>
                     </tr>
                     <tr><td colspan="2" align="center"><br /><input class="button" name="btnSubmit" value="'.$this->l('Update settings').'" type="submit" /></td></tr>
                 </table>

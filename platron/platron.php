@@ -202,19 +202,18 @@ class platron extends PaymentModule
     public function createItemsOfOrderByCheck($order)
     {
         $ofdReceiptItems = [];
-        $rate = 0;
+        $rate = $this->pl_ofd_vat;
         foreach($order->getProducts()as $key => $item) {
             $ofdReceiptItem           = new OfdReceiptItem();
             $ofdReceiptItem->label    = $item['name'];
             $ofdReceiptItem->amount   = round($item['price_wt'] * $item['quantity'], 2);
             $ofdReceiptItem->price    = round($item['price_wt'], 2);
             $ofdReceiptItem->quantity =  $item['quantity'];
-            $ofdReceiptItem->vat      = (int) $item['rate'];
+            $ofdReceiptItem->vat      = $rate;
             $ofdReceiptItems[]        = $ofdReceiptItem;
-            $rate = (int) $item['rate'];
         }
         if ($order->getPackageShippingCost() > 0) {
-            $ofdReceiptItems[] = $this->addShippingByOrder($order, $rate);
+            $ofdReceiptItems[] = $this->addShippingByOrder($order, ($rate === 'none' ? 'none' : '18'));
         }
         $sum = 0;
         return $ofdReceiptItems;
@@ -231,7 +230,7 @@ class platron extends PaymentModule
         $ofdReceiptItem->label    = 'Доставка';
         $ofdReceiptItem->amount   = round($order->getPackageShippingCost(), 2);
         $ofdReceiptItem->price    = round($order->getPackageShippingCost(), 2);
-        $ofdReceiptItem->vat      = (int) $rate; // fixed
+        $ofdReceiptItem->vat      = $rate;
         $ofdReceiptItem->quantity = 1;
         return $ofdReceiptItem;
     }

@@ -64,11 +64,8 @@ class PG_Signature {
 	private static function makeSigStr ( $strScriptName, $arrParams, $strSecretKey ) 
 	{
 		unset($arrParams['pg_sig']);
-		
 		ksort($arrParams);
-		array_unshift($arrParams, $strScriptName);
-		array_push   ($arrParams, $strSecretKey);
-		return self::arJoin($arrParams);
+		return $strScriptName . ';' . self::arJoin($arrParams) . ';' . $strSecretKey;
 	}
 	private static function arJoin ($in) {
 		return rtrim(self::arJoinProcess($in, ''), ';');

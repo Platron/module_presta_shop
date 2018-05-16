@@ -41,6 +41,6 @@ else {
 			Tools::redirect($arrRequest['pg_failure_url']);
        }
    }
-	$platron->validateOrder((int)($secure_cart[0]), Configuration::get('PS_OS_BANKWIRE'), (float)($arrRequest['pg_amount']), $platron->displayName, 'Wait for pay', array(), NULL, false, $customer->secure_key);
+	$platron->validateOrder((int)($secure_cart[0]), Configuration::get('PS_OS_BANKWIRE'), (float)($arrRequest['pg_amount']), $platron->displayName, null, array(), NULL, false, $customer->secure_key);
     header("Location: ".$redirectUrl);
 }

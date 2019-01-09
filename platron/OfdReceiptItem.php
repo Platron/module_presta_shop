@@ -6,7 +6,7 @@ class OfdReceiptItem
     public $price;
     public $quantity;
     public $vat;
-    public $type;
+    public $type = 'product';
     
     public function getAttributeAsArray()
     {

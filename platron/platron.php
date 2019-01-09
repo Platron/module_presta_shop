@@ -147,9 +147,9 @@ class platron extends PaymentModule
                     			<option value="none" ' . ('none' === $selectedVatType ? 'selected="selected"' : '') . '>' . $this->l('Не облагается') . '</option>
                     			<option value="0" ' . ('0' === $selectedVatType ? 'selected="selected"' : '') . '>' . $this->l('0%') . '</option>
                     			<option value="10" ' . ('10' === $selectedVatType ? 'selected="selected"' : '') . '>' . $this->l('10%') . '</option>
-                    			<option value="18" ' . ('18' === $selectedVatType ? 'selected="selected"' : '') . '>' . $this->l('18%') . '</option>
+                    			<option value="20" ' . ('20' === $selectedVatType ? 'selected="selected"' : '') . '>' . $this->l('20%') . '</option>
                     			<option value="110" ' . ('110' === $selectedVatType ? 'selected="selected"' : '') . '>' . $this->l('10/110') . '</option>
-                    			<option value="118" ' . ('118' === $selectedVatType ? 'selected="selected"' : '') . '>' . $this->l('18/118') . '</option>
+                    			<option value="120" ' . ('120' === $selectedVatType ? 'selected="selected"' : '') . '>' . $this->l('20/120') . '</option>
                     		</select>
                     </tr>
                     <tr><td colspan="2" align="center"><br /><input class="button" name="btnSubmit" value="'.$this->l('Update settings').'" type="submit" /></td></tr>
@@ -213,7 +213,7 @@ class platron extends PaymentModule
             $ofdReceiptItems[]        = $ofdReceiptItem;
         }
         if ($order->getPackageShippingCost() > 0) {
-            $ofdReceiptItems[] = $this->addShippingByOrder($order, ($rate === 'none' ? 'none' : '18'));
+            $ofdReceiptItems[] = $this->addShippingByOrder($order, ($rate === 'none' ? 'none' : '20'));
         }
         $sum = 0;
         return $ofdReceiptItems;
@@ -232,6 +232,7 @@ class platron extends PaymentModule
         $ofdReceiptItem->price    = round($order->getPackageShippingCost(), 2);
         $ofdReceiptItem->vat      = $rate;
         $ofdReceiptItem->quantity = 1;
+        $ofdReceiptItem->type = 'service';
         return $ofdReceiptItem;
     }
 
